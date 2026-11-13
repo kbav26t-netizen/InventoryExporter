@@ -5,23 +5,23 @@ plugins {
 
 android {
     namespace = "com.inventory.exporter"
+    compileSdk = 34
 
     signingConfigs {
         getByName("debug") {
-            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storeFile = rootProject.file("debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
     }
-    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.inventory.exporter"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
         multiDexEnabled = true
     }
 
@@ -39,12 +39,8 @@ android {
     packaging {
         resources {
             excludes += setOf(
-                "META-INF/DEPENDENCIES",
-                "META-INF/LICENSE",
-                "META-INF/LICENSE.txt",
-                "META-INF/NOTICE",
-                "META-INF/NOTICE.txt",
-                "META-INF/*.kotlin_module"
+                "META-INF/DEPENDENCIES", "META-INF/LICENSE", "META-INF/LICENSE.txt",
+                "META-INF/NOTICE", "META-INF/NOTICE.txt", "META-INF/*.kotlin_module"
             )
         }
     }
