@@ -5,6 +5,15 @@ plugins {
 
 android {
     namespace = "com.inventory.exporter"
+
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
     compileSdk = 34
 
     defaultConfig {
