@@ -54,3 +54,10 @@ dependencies {
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
+
+android.applicationVariants.all {
+    variant ->
+    variant.outputs.all {
+        outputFileName = "exporter-plugin-${variant.name}.apk"
+    }
+}
