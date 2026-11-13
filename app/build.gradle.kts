@@ -39,6 +39,12 @@ android {
             )
         }
     }
+
+    applicationVariants.configureEach {
+        outputs.configureEach {
+            (this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl)?.outputFileName = "exporter-plugin-${name}.apk"
+        }
+    }
 }
 
 dependencies {
@@ -49,15 +55,6 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.8.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
-
     implementation("org.apache.poi:poi-ooxml:5.2.3")
-
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
-}
-
-android.applicationVariants.all {
-    variant ->
-    variant.outputs.all {
-        outputFileName = "exporter-plugin-${variant.name}.apk"
-    }
 }
