@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Create debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -19,15 +23,11 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Build APK
         run: ./gradlew assembleDebug --stacktrace
-      - name: Create Keystore
-        run: keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-      - name: Sign APK
+      - name: Verify signature
         run: |
-          APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
-          echo "Found APK: $APK_PATH"
-          $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks debug.keystore --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android "$APK_PATH"
-          echo "Verifying..."
-          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --print-certs "$APK_PATH"
+          APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | head -n 1)
+          "$APKSIGNER" verify --print-certs "$APK"
       - name: Create Release
         uses: softprops/action-gh-release@v2
         if: success()
