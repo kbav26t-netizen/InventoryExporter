@@ -19,8 +19,13 @@ jobs:
           distribution: 'temurin'
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-      - name: Build and Sign APK
+      - name: Build APK
         run: ./gradlew assembleDebug --stacktrace
+      - name: Verify APK Signature (Fail if unsigned)
+        run: |
+          APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          echo "Verifying signature of: $APK"
+          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --print-certs "$APK"
       - name: Create Release
         uses: softprops/action-gh-release@v2
         if: success()

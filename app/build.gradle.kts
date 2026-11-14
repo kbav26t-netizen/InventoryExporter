@@ -16,12 +16,18 @@ android {
         }
     }
 
+    buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
     defaultConfig {
         applicationId = "com.inventory.exporter"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.4"
+        versionCode = 6
+        versionName = "1.5"
         multiDexEnabled = true
     }
 
