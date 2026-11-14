@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Разрешаем видеть ScannerPlugin и Hub для Android 11+ -->
+    <queries>
+        <package android:name="com.inventory.scanner" />
+        <package android:name="com.inventory.hub" />
+    </queries>
+
     <application
         android:allowBackup="true"
         android:label="Экспорт Excel"
