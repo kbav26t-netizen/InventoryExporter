@@ -3,6 +3,7 @@ package com.inventory.exporter
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
@@ -41,12 +42,56 @@ private fun Context.findActivity(): Activity? {
     return null
 }
 
+data class ScanRecord(
+    val id: Long,
+    val barcode: String,
+    val quantity: Int,
+    val format: String,
+    val timestamp: Long
+)
+
+private fun readScansFromProvider(context: Context): List<ScanRecord> {
+    val uri = Uri.parse("content://com.inventory.scanner.history/scans")
+    val scans = mutableListOf<ScanRecord>()
+    
+    try {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor: Cursor ->
+            val idIdx = cursor.getColumnIndexOrThrow("_id")
+            val barcodeIdx = cursor.getColumnIndexOrThrow("barcode")
+            val quantityIdx = cursor.getColumnIndexOrThrow("quantity")
+            val formatIdx = cursor.getColumnIndexOrThrow("format")
+            val timestampIdx = cursor.getColumnIndexOrThrow("timestamp")
+            
+            while (cursor.moveToNext()) {
+                scans.add(
+                    ScanRecord(
+                        id = cursor.getLong(idIdx),
+                        barcode = cursor.getString(barcodeIdx),
+                        quantity = cursor.getInt(quantityIdx),
+                        format = cursor.getString(formatIdx),
+                        timestamp = cursor.getLong(timestampIdx)
+                    )
+                )
+            }
+        }
+    } catch (e: Exception) {
+        // ScannerPlugin не установлен или нет данных
+    }
+    
+    return scans
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExportScreen() {
     val context = LocalContext.current
     val activity = context.findActivity()
     var savedPath by remember { mutableStateOf<String?>(null) }
+    var scanCount by remember { mutableIntStateOf(0) }
+    
+    LaunchedEffect(Unit) {
+        scanCount = readScansFromProvider(context).size
+    }
 
     fun goBackToHub() {
         val hub = context.packageManager.getLaunchIntentForPackage("com.inventory.hub")
@@ -62,24 +107,51 @@ fun ExportScreen() {
     ) { uri: Uri? ->
         if (uri != null) {
             try {
+                val scans = readScansFromProvider(context)
+                
                 context.contentResolver.openOutputStream(uri)?.use { out ->
                     val wb = XSSFWorkbook()
                     val sheet = wb.createSheet("Сканирования")
                     
-                    // Заголовки
                     val header = sheet.createRow(0)
                     listOf("№", "Артикул", "Штрихкод", "Наименование", "Количество")
                         .forEachIndexed { i, t -> header.createCell(i).setCellValue(t) }
                     
-                    // Тестовые данные (10 строк)
                     val df = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.getDefault())
-                    for (i in 1..10) {
-                        val row = sheet.createRow(i)
-                        row.createCell(0).setCellValue(i.toDouble()) // № по порядку
-                        row.createCell(1).setCellValue("ART$i") // Артикул
-                        row.createCell(2).setCellValue("460372690596$i") // Штрихкод
-                        row.createCell(3).setCellValue("Тестовый товар $i") // Наименование
-                        row.createCell(4).setCellValue(1.0) // Количество
+                    
+                    if (scans.isEmpty()) {
+                        // Тестовые данные, если сканов нет
+                        for (i in 1..10) {
+                            val row = sheet.createRow(i)
+                            row.createCell(0).setCellValue(i.toDouble())
+                            row.createCell(1).setCellValue("ART$i")
+                            row.createCell(2).setCellValue("460372690596$i")
+                            row.createCell(3).setCellValue("Тестовый товар $i")
+                            row.createCell(4).setCellValue(1.0)
+                        }
+                    } else {
+                        // Группируем одинаковые штрихкоды и суммируем количество
+                        val grouped = scans.groupBy { it.barcode }
+                            .map { (barcode, list) ->
+                                val totalQty = list.sumOf { it.quantity }
+                                val first = list.first()
+                                ScanRecord(
+                                    id = first.id,
+                                    barcode = barcode,
+                                    quantity = totalQty,
+                                    format = first.format,
+                                    timestamp = first.timestamp
+                                )
+                            }
+                        
+                        grouped.forEachIndexed { index, scan ->
+                            val row = sheet.createRow(index + 1)
+                            row.createCell(0).setCellValue((index + 1).toDouble()) // №
+                            row.createCell(1).setCellValue("") // Артикул (пока пусто, можно добавить позже)
+                            row.createCell(2).setCellValue(scan.barcode) // Штрихкод
+                            row.createCell(3).setCellValue("${scan.format} (${df.format(Date(scan.timestamp))})") // Наименование
+                            row.createCell(4).setCellValue(scan.quantity.toDouble()) // Количество (суммарное)
+                        }
                     }
                     
                     wb.write(out)
@@ -111,6 +183,8 @@ fun ExportScreen() {
             verticalArrangement = Arrangement.Center
         ) {
             Text("Экспорт данных в Excel", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Найдено сканирований: $scanCount", style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(32.dp))
             Button(onClick = { createDoc.launch("inventory_export.xlsx") }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Download, contentDescription = null)
