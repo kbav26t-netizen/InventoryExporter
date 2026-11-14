@@ -1,5 +1,7 @@
 package com.inventory.exporter
 
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -26,17 +28,34 @@ import java.util.*
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            MaterialTheme { ExportScreen() }
-        }
+        setContent { MaterialTheme { ExportScreen() } }
     }
+}
+
+private fun Context.findActivity(): Activity? {
+    var c = this
+    while (c is android.content.ContextWrapper) {
+        if (c is Activity) return c
+        c = c.baseContext
+    }
+    return null
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExportScreen() {
     val context = LocalContext.current
+    val activity = context.findActivity()
     var savedPath by remember { mutableStateOf<String?>(null) }
+
+    fun goBackToHub() {
+        val hub = context.packageManager.getLaunchIntentForPackage("com.inventory.hub")
+        if (hub != null) {
+            hub.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            context.startActivity(hub)
+        }
+        activity?.finish()
+    }
 
     val createDoc = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -46,17 +65,23 @@ fun ExportScreen() {
                 context.contentResolver.openOutputStream(uri)?.use { out ->
                     val wb = XSSFWorkbook()
                     val sheet = wb.createSheet("Сканирования")
+                    
+                    // Заголовки
                     val header = sheet.createRow(0)
-                    listOf("Штрих-код", "Количество", "Формат", "Дата/Время")
+                    listOf("№", "Артикул", "Штрихкод", "Наименование", "Количество")
                         .forEachIndexed { i, t -> header.createCell(i).setCellValue(t) }
+                    
+                    // Тестовые данные (10 строк)
                     val df = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.getDefault())
                     for (i in 1..10) {
                         val row = sheet.createRow(i)
-                        row.createCell(0).setCellValue("460372690596$i")
-                        row.createCell(1).setCellValue(i.toDouble())
-                        row.createCell(2).setCellValue("BARCODE")
-                        row.createCell(3).setCellValue(df.format(Date()))
+                        row.createCell(0).setCellValue(i.toDouble()) // № по порядку
+                        row.createCell(1).setCellValue("ART$i") // Артикул
+                        row.createCell(2).setCellValue("460372690596$i") // Штрихкод
+                        row.createCell(3).setCellValue("Тестовый товар $i") // Наименование
+                        row.createCell(4).setCellValue(1.0) // Количество
                     }
+                    
                     wb.write(out)
                     wb.close()
                 }
@@ -73,8 +98,8 @@ fun ExportScreen() {
             TopAppBar(
                 title = { Text("Экспорт в Excel") },
                 navigationIcon = {
-                    IconButton(onClick = { context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)) }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                    IconButton(onClick = { goBackToHub() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "В хаб")
                     }
                 }
             )
