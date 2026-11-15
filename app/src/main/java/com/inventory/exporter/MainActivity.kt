@@ -47,13 +47,13 @@ data class ScanRecord(
     val barcode: String,
     val quantity: Int,
     val format: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val userName: String = ""
 )
 
 private fun readScansFromProvider(context: Context): List<ScanRecord> {
     val uri = Uri.parse("content://com.inventory.scanner.history/scans")
     val scans = mutableListOf<ScanRecord>()
-    
     try {
         context.contentResolver.query(uri, null, null, null, null)?.use { cursor: Cursor ->
             val idIdx = cursor.getColumnIndexOrThrow("_id")
@@ -61,23 +61,22 @@ private fun readScansFromProvider(context: Context): List<ScanRecord> {
             val quantityIdx = cursor.getColumnIndexOrThrow("quantity")
             val formatIdx = cursor.getColumnIndexOrThrow("format")
             val timestampIdx = cursor.getColumnIndexOrThrow("timestamp")
-            
+            val userIdx = cursor.getColumnIndex("user_name")
             while (cursor.moveToNext()) {
+                val name = if (userIdx >= 0) (cursor.getString(userIdx) ?: "") else ""
                 scans.add(
                     ScanRecord(
                         id = cursor.getLong(idIdx),
                         barcode = cursor.getString(barcodeIdx),
                         quantity = cursor.getInt(quantityIdx),
                         format = cursor.getString(formatIdx),
-                        timestamp = cursor.getLong(timestampIdx)
+                        timestamp = cursor.getLong(timestampIdx),
+                        userName = name
                     )
                 )
             }
         }
-    } catch (e: Exception) {
-        // ScannerPlugin не установлен или нет данных
-    }
-    
+    } catch (e: Exception) { }
     return scans
 }
 
@@ -88,10 +87,8 @@ fun ExportScreen() {
     val activity = context.findActivity()
     var savedPath by remember { mutableStateOf<String?>(null) }
     var scanCount by remember { mutableIntStateOf(0) }
-    
-    LaunchedEffect(Unit) {
-        scanCount = readScansFromProvider(context).size
-    }
+
+    LaunchedEffect(Unit) { scanCount = readScansFromProvider(context).size }
 
     fun goBackToHub() {
         val hub = context.packageManager.getLaunchIntentForPackage("com.inventory.hub")
@@ -108,19 +105,13 @@ fun ExportScreen() {
         if (uri != null) {
             try {
                 val scans = readScansFromProvider(context)
-                
                 context.contentResolver.openOutputStream(uri)?.use { out ->
                     val wb = XSSFWorkbook()
                     val sheet = wb.createSheet("Сканирования")
-                    
                     val header = sheet.createRow(0)
                     listOf("№", "Артикул", "Штрихкод", "Наименование", "Количество")
                         .forEachIndexed { i, t -> header.createCell(i).setCellValue(t) }
-                    
-                    val df = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.getDefault())
-                    
                     if (scans.isEmpty()) {
-                        // Тестовые данные, если сканов нет
                         for (i in 1..10) {
                             val row = sheet.createRow(i)
                             row.createCell(0).setCellValue(i.toDouble())
@@ -130,30 +121,22 @@ fun ExportScreen() {
                             row.createCell(4).setCellValue(1.0)
                         }
                     } else {
-                        // Группируем одинаковые штрихкоды и суммируем количество
                         val grouped = scans.groupBy { it.barcode }
                             .map { (barcode, list) ->
-                                val totalQty = list.sumOf { it.quantity }
+                                val total = list.sumOf { it.quantity }
                                 val first = list.first()
-                                ScanRecord(
-                                    id = first.id,
-                                    barcode = barcode,
-                                    quantity = totalQty,
-                                    format = first.format,
-                                    timestamp = first.timestamp
-                                )
+                                val name = list.firstOrNull { it.userName.isNotBlank() }?.userName ?: ""
+                                ScanRecord(first.id, barcode, total, first.format, first.timestamp, name)
                             }
-                        
                         grouped.forEachIndexed { index, scan ->
                             val row = sheet.createRow(index + 1)
-                            row.createCell(0).setCellValue((index + 1).toDouble()) // №
-                            row.createCell(1).setCellValue("") // Артикул (пока пусто, можно добавить позже)
-                            row.createCell(2).setCellValue(scan.barcode) // Штрихкод
-                            row.createCell(3).setCellValue("${scan.format} (${df.format(Date(scan.timestamp))})") // Наименование
-                            row.createCell(4).setCellValue(scan.quantity.toDouble()) // Количество (суммарное)
+                            row.createCell(0).setCellValue((index + 1).toDouble())
+                            row.createCell(1).setCellValue("")
+                            row.createCell(2).setCellValue(scan.barcode)
+                            row.createCell(3).setCellValue(scan.userName)
+                            row.createCell(4).setCellValue(scan.quantity.toDouble())
                         }
                     }
-                    
                     wb.write(out)
                     wb.close()
                 }
